@@ -1,6 +1,6 @@
 name: loom-docs
-server: bp.common.al
-port: 80
+type: static
+public: docs/.vitepress/dist/
+
 build:
-    dockerfile: Dockerfile
-    context: .
+  command: npm run build
