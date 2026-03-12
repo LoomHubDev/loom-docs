@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN npx vitepress build docs
 
 FROM nginx:alpine
 COPY --from=builder /app/docs/.vitepress/dist /usr/share/nginx/html
