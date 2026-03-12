@@ -1,0 +1,15 @@
+{
+  "name": "loom-docs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "sync:loom": "node scripts/sync-loom-docs.mjs",
+    "dev": "npm run sync:loom && vitepress dev docs",
+    "build": "npm run sync:loom && vitepress build docs",
+    "preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}
