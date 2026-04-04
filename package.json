@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "sync:loom": "node scripts/sync-loom-docs.mjs",
+    "test": "node --test tests/*.test.mjs",
     "dev": "npm run sync:loom && vitepress dev docs",
     "build": "npm run sync:loom && vitepress build docs",
     "preview": "vitepress preview docs"

@@ -3,19 +3,27 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "Loom Docs",
   description: "Official documentation for Loom and its system architecture.",
+  appearance: true,
   lastUpdated: true,
   cleanUrls: true,
+  head: [
+    ["meta", { name: "theme-color", content: "#f4efe7" }],
+    ["meta", { name: "color-scheme", content: "light dark" }]
+  ],
   themeConfig: {
     logo: {
-      text: "Loom"
+      light: "/loom-logo-light.svg",
+      dark: "/loom-logo-dark.svg",
+      alt: "Loom mark"
     },
     nav: [
       { text: "Home", link: "/" },
-      { text: "Overview", link: "/loom/index" },
+      { text: "Architecture", link: "/loom/02-technical-architecture" },
       { text: "CLI", link: "/loom/11-cli-reference" },
       { text: "Systems", link: "/loom/06-systems/operation-log" },
       { text: "AI", link: "/loom/07-agent-api" },
-      { text: "Roadmap", link: "/loom/08-development-roadmap" }
+      { text: "Roadmap", link: "/loom/08-development-roadmap" },
+      { text: "LoomHub", link: "/loomhub" }
     ],
     socialLinks: [],
     search: {
@@ -69,7 +77,7 @@ export default defineConfig({
       ]
     },
     footer: {
-      message: "Built with VitePress.",
+      message: "Loom docs for the versioning engine, sync layer, and timeline model.",
       copyright: "Loom documentation"
     }
   }
