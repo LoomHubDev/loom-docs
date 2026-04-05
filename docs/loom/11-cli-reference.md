@@ -13,9 +13,7 @@ loom <command> [subcommand] [flags] [args]
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--project` | `-p` | `.` | Project directory path |
-| `--format` | `-f` | `text` | Output format: `text`, `json` |
-| `--verbose` | `-v` | `false` | Verbose output |
-| `--quiet` | `-q` | `false` | Suppress non-essential output |
+| `--version` | | | Print version and exit |
 
 ## Commands
 
@@ -32,13 +30,6 @@ loom init [path]
 2. Auto-detects spaces (code, docs, design, data, config, notes)
 3. Creates `main` stream
 4. Performs initial entity scan
-
-**Flags:**
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--name` | directory name | Project name |
-| `--author` | from git config | Author name |
-| `--no-detect` | `false` | Skip auto-detection of spaces |
 
 **Output:**
 ```
@@ -86,22 +77,15 @@ Spaces:
 Create a named checkpoint.
 
 ```bash
-loom checkpoint <title> [flags]
+loom checkpoint <title>
 ```
 
 **Examples:**
 ```bash
 loom checkpoint "auth system complete"
-loom checkpoint "before redesign" --tag release=v2.0
-loom checkpoint "pre-deploy" --tag env=production
+loom checkpoint "before redesign"
+loom checkpoint "pre-deploy"
 ```
-
-**Flags:**
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--summary` `-m` | auto | Longer description |
-| `--tag` | none | Key=value tags (repeatable) |
-| `--source` | `manual` | Override source type |
 
 **Output:**
 ```
@@ -163,7 +147,6 @@ Source:      manual
 Stream:     main
 Seq:        1234
 Created:    2026-03-11T10:15:30.000Z
-Tags:       release=v2.0
 
 Spaces:
   code (changed)
@@ -209,8 +192,7 @@ loom diff --entity src/main.go  # Only one file
 | `--entity` | all | Filter by entity path |
 | `--summary` | `false` | Summary only, no content |
 | `--context` `-C` | 3 | Lines of context |
-| `--format` | `text` | Output format: text, json, patch |
-| `--color` | auto | Color output (auto, always, never) |
+| `--format` | `text` | Output format: text, json |
 
 ---
 
@@ -232,8 +214,6 @@ loom restore <checkpoint-id> [flags]
 |------|---------|-------------|
 | `--space` | all | Restore only one space |
 | `--entity` | all | Restore only one entity |
-| `--dry-run` | `false` | Show what would be restored |
-| `--no-guard` | `false` | Skip guard checkpoint |
 
 **Output:**
 ```
@@ -268,8 +248,6 @@ loom stream create <name>        # Create new stream (fork from current)
 loom stream switch <name>        # Switch active stream
 loom stream list                 # List all streams
 loom stream info <name>          # Show stream details
-loom stream archive <name>       # Archive a stream
-loom stream delete <name>        # Delete a stream
 ```
 
 **Output (list):**
@@ -293,8 +271,7 @@ loom weave <stream-name> [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--dry-run` | `false` | Show what would be woven |
-| `--strategy` | `auto+llm` | Weave strategy: auto, llm, ours, theirs |
-| `--accept-all` | `false` | Accept all LLM suggestions |
+| `--strategy` | `auto` | Weave strategy: auto, ours, theirs |
 
 **Output:**
 ```
@@ -302,10 +279,8 @@ Weaving feature/auth into main...
 
   ✓ 15 entities auto-woven (Tier 1: different entities)
   ✓ 3 entities auto-woven (Tier 2: non-overlapping changes)
-  ✓ 1 entity resolved by AI (Tier 3: confidence 0.95)
-    src/auth/login.go — combined both authentication methods
 
-Weave complete. 19 operations applied.
+Weave complete. 18 operations applied.
 Checkpoint: "Weave feature/auth into main"
 ```
 
@@ -322,9 +297,8 @@ loom watch [flags]
 **Flags:**
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--daemon` | `false` | Run in background |
-| `--agent-api` | `false` | Start agent API server |
-| `--agent-port` | 7890 | Agent API port |
+| `--debounce` | `500ms` | Debounce duration for file events |
+| `--no-auto-checkpoint` | `false` | Disable automatic checkpointing |
 
 **Output (foreground):**
 ```
@@ -354,7 +328,6 @@ loom hub add <name> <url>        # Add a hub
 loom hub remove <name>           # Remove a hub
 loom hub list                    # List hubs
 loom hub auth <name>             # Set authentication
-loom hub status                  # Show sync status
 ```
 
 ---
@@ -391,25 +364,6 @@ loom receive [hub] [flags]
 
 ---
 
-### `loom space`
-
-Manage tracked spaces.
-
-```bash
-loom space <subcommand> [flags]
-```
-
-**Subcommands:**
-```bash
-loom space list                  # List tracked spaces
-loom space add <id> <path>       # Add a space
-loom space remove <id>           # Remove a space
-loom space info <id>             # Show space details
-loom space scan <id>             # Rescan entities
-```
-
----
-
 ### `loom doctor`
 
 Check project integrity.
@@ -426,7 +380,6 @@ Checking Loom project...
   ✓ All references valid
   ✓ Sequence numbers monotonic
   ✓ Stream heads valid
-  ✓ No orphaned objects
 
 All checks passed.
 ```
@@ -435,27 +388,41 @@ All checks passed.
 
 ### `loom compact`
 
-Compact the operation log.
+Compact the operation log by removing superseded operations and running VACUUM.
 
 ```bash
-loom compact [flags]
+loom compact
 ```
-
-**Flags:**
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--dry-run` | `false` | Show what would be compacted |
-| `--keep` | 100 | Keep last N ops per entity |
 
 ---
 
-### `loom export` / `loom import`
+### `loom export`
 
-Export and import project history.
+Export project history to a tar.gz archive.
 
 ```bash
-loom export --output backup.loom
-loom import backup.loom
+loom export [output-path]
+```
+
+**Examples:**
+```bash
+loom export                      # Exports to default filename
+loom export backup.tar.gz        # Exports to specific path
+```
+
+---
+
+### `loom import`
+
+Import project history from an archive.
+
+```bash
+loom import <archive-path>
+```
+
+**Examples:**
+```bash
+loom import backup.tar.gz
 ```
 
 ---
@@ -472,20 +439,50 @@ loom agent-server [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port` | 7890 | Port to listen on |
-| `--token` | auto | Auth token (auto-generated if not set) |
 
-## Exit Codes
+**Endpoints:**
+```
+POST /api/v1/checkpoint      # Create a checkpoint
+POST /api/v1/rollback        # Rollback to a checkpoint
+GET  /api/v1/diff            # Get diff
+GET  /api/v1/log             # Get checkpoint log
+GET  /api/v1/status          # Get project status
+GET  /api/v1/search          # Search checkpoints
+```
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error |
-| 2 | Not a Loom project (no .loom/) |
-| 3 | Checkpoint not found |
-| 4 | Stream not found |
-| 5 | Weave conflict (Tier 4 — manual needed) |
-| 6 | Hub error (network/auth) |
-| 7 | Lock held by another process |
+---
+
+## `loom-server`
+
+The hub server binary. Run as a standalone service to host shared project history.
+
+```bash
+loom-server serve [flags]
+loom-server user add <username>
+```
+
+**Serve flags:**
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | 8080 | Port to listen on |
+| `--data` | `./data` | Directory for per-project SQLite databases |
+
+**Authentication:** Uses bcrypt password hashing and hand-rolled HS256 JWT tokens.
+
+**Examples:**
+```bash
+# Start the hub server
+loom-server serve --port 8080 --data /var/lib/loom
+
+# Add a user
+loom-server user add alice
+
+# Connect from a client
+loom hub add origin http://localhost:8080/project/my-app
+loom hub auth origin
+loom send
+loom receive
+```
 
 ## Shell Completion
 
@@ -498,16 +495,4 @@ loom completion zsh > "${fpath[1]}/_loom"
 
 # Fish
 loom completion fish > ~/.config/fish/completions/loom.fish
-```
-
-## Aliases
-
-Configure in `~/.config/loom/config.toml`:
-
-```toml
-[aliases]
-co = "checkpoint"
-st = "status"
-br = "stream"
-sw = "stream switch"
 ```

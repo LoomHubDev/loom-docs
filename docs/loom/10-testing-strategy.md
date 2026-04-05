@@ -8,68 +8,60 @@
 - Table-driven tests for exhaustive edge cases
 - No mocks for SQLite — use real temporary databases
 - Tests must be fast (entire suite < 30 seconds)
+- testify (`assert`/`require`) used alongside stdlib `testing`
 
 ## Test Structure
 
 ```
 internal/
   core/
-    operation_test.go           # Unit tests for operation types
-    oplog_test.go               # Unit tests for op reader/writer
-    checkpoint_test.go          # Unit tests for checkpoint engine
-    stream_test.go              # Unit tests for stream manager
-    vault_test.go               # Unit tests for vault init/open
+    types_test.go                # Unit tests for core types
+    oplog_test.go                # Unit tests for op reader/writer
+    oplog_edge_test.go           # Edge cases for operation log
+    checkpoint_test.go           # Unit tests for checkpoint engine
+    stream_test.go               # Unit tests for stream manager
   storage/
-    sqlite_test.go              # Database init, migrations, pragmas
-    objectstore_test.go         # Blob write/read/dedup/gc
-    schema_test.go              # Schema validation
-  adapter/
-    code/
-      code_test.go              # Code adapter detection, normalization
-      git_test.go               # Git integration
-    docs/
-      docs_test.go              # Docs adapter
-    design/
-      design_test.go            # Design adapter
+    sqlite_test.go               # Database init, migrations, pragmas
+    objectstore_test.go          # Blob write/read/dedup/gc
   diff/
-    engine_test.go              # Diff orchestration
-    text_test.go                # Myers text diff
-    structured_test.go          # JSON patch diff
+    engine_test.go               # Diff orchestration
+    text_test.go                 # Myers text diff
+    structured_test.go           # JSON field-level diff
+    restore_test.go              # Restore engine
   merge/
-    engine_test.go              # Merge orchestration
-    threeway_test.go            # Three-way merge algorithm
+    engine_test.go               # Merge orchestration (WeaveEngine)
+    threeway_test.go             # Three-way line merge algorithm
+    json_test.go                 # JSON field-level merge
+  watch/
+    watcher_test.go              # fsnotify file watcher
+    debouncer_test.go            # 500ms debouncer
+    ignore_test.go               # .loomignore filter
   sync/
-    client_test.go              # Sync client
-    protocol_test.go            # Wire protocol serialization
+    client_test.go               # Sync client (negotiate/push/pull)
   server/
-    handlers_test.go            # Server API handlers
+    handlers_test.go             # Hub server API handlers
   agent/
-    api_test.go                 # Agent API handlers
+    api_test.go                  # Agent API endpoints
   cli/
-    init_test.go                # CLI command tests
+    init_test.go                 # CLI command tests
     checkpoint_test.go
     log_test.go
     diff_test.go
     restore_test.go
-  testutil/
-    db.go                       # Test database helper
-    vault.go                    # Test vault helper
-    fixtures.go                 # Test fixture management
+pkg/
+  loom/
+    client_test.go               # Go SDK (Open, Checkpoint, Rollback, Diff, Log, Status, Search)
 test/
   integration/
-    init_checkpoint_test.go     # Init → add → checkpoint → log
-    watch_auto_test.go          # Watch → modify files → auto checkpoint
-    diff_restore_test.go        # Checkpoint → modify → diff → restore
-    stream_merge_test.go        # Fork → modify → merge
-    sync_test.go                # Push → pull round-trip
-    agent_test.go               # Agent API workflow
+    workflow_test.go             # Init → checkpoint → diff → restore
+    watch_test.go                # Watch → modify files → auto checkpoint
+    sync_test.go                 # Push → pull round-trip
+    agent_test.go                # Agent API workflow
   fixtures/
-    sample-project/             # A minimal project for testing
+    sample-project/              # A minimal project for testing
       main.go
       docs/
         readme.md
-      design/
-        mockup.json
 ```
 
 ## Unit Test Patterns
@@ -175,27 +167,6 @@ func TestObjectStore_Deduplication(t *testing.T) {
     // Only one file should exist
     entries := countObjectFiles(store.Root())
     assert.Equal(t, 1, entries)
-}
-
-func TestObjectStore_Compression(t *testing.T) {
-    store := testutil.NewTestObjectStore(t)
-
-    // Small content — stored raw
-    small := []byte("hello")
-    smallHash, _ := store.Write(small)
-    assert.False(t, store.IsCompressed(smallHash))
-
-    // Large content — stored compressed
-    large := make([]byte, 10000)
-    for i := range large {
-        large[i] = byte(i % 256)
-    }
-    largeHash, _ := store.Write(large)
-    assert.True(t, store.IsCompressed(largeHash))
-
-    // Read back — should be identical
-    readBack, _ := store.Read(largeHash)
-    assert.Equal(t, large, readBack)
 }
 ```
 
@@ -308,34 +279,23 @@ func TestFullWorkflow_InitCheckpointDiffRestore(t *testing.T) {
 }
 ```
 
-## Test Fixtures
+## Test Packages
 
-### Sample Project
+| Package | Tests | Notes |
+|---------|-------|-------|
+| `internal/core` | 271+ | Types, op log, checkpoint, stream manager |
+| `internal/watch` | 27 | Watcher, debouncer, ignore filter |
+| `internal/diff` | 41 | Diff engine, text diff, structured diff, restore |
+| `internal/merge` | 27 | WeaveEngine, three-way text, JSON merge |
+| `internal/agent` | 16 | HTTP agent server endpoints |
+| `internal/server` | 6 | Hub server handlers |
+| `internal/storage` | included in core | SQLite, object store |
+| `internal/sync` | included in core | Sync client |
+| `internal/cli` | included in core | CLI commands |
+| `pkg/loom` | included in agent | Go SDK |
+| `test/integration` | 2+ | End-to-end workflows |
 
-```
-test/fixtures/sample-project/
-  main.go                       # package main
-  go.mod                        # module example.com/test
-  docs/
-    readme.md                   # # Test Project
-    guide.md                    # ## Getting Started
-  design/
-    mockup.json                 # { "pages": [...] }
-  notes/
-    todo.md                     # - [x] Setup project
-```
-
-### Fixture Helper
-
-```go
-func CopySampleProject(t *testing.T) string {
-    t.Helper()
-    dir := t.TempDir()
-    // Copy test/fixtures/sample-project/ to dir
-    copyDir("test/fixtures/sample-project", dir)
-    return dir
-}
-```
+**Total: 390+ tests across 11 packages.**
 
 ## Coverage Targets
 
@@ -343,7 +303,6 @@ func CopySampleProject(t *testing.T) string {
 |---------|--------|
 | `internal/core` | 90%+ |
 | `internal/storage` | 85%+ |
-| `internal/adapter` | 80%+ |
 | `internal/diff` | 90%+ |
 | `internal/merge` | 90%+ |
 | `internal/sync` | 80%+ |
