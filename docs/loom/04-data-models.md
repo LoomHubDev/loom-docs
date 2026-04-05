@@ -129,6 +129,7 @@ const (
     SourceWorkflow  CheckpointSource = "workflow"  // Created by automation/hook
     SourceGuard     CheckpointSource = "guard"     // Before risky operation
     SourceRestore   CheckpointSource = "restore"   // After a restore operation
+    SourceWeave     CheckpointSource = "weave"     // Created by a weave (merge) operation
 )
 ```
 
@@ -347,7 +348,27 @@ type MergeConflict struct {
 type OpType string       // create, modify, delete, move, rename, meta
 type ChangeType string   // created, modified, deleted, moved, none
 type SpaceStatus string  // changed, unchanged
-type CheckpointSource string // manual, auto, agent, workflow, guard, restore
+type CheckpointSource string // manual, auto, agent, workflow, guard, restore, weave
+```
+
+### MergeConfig
+
+Configuration for the merge/weave engine, loaded from `.loom/config.toml`.
+
+```go
+type MergeConfig struct {
+    DefaultStrategy string            `toml:"default_strategy"` // "auto+llm", "auto", "ours", "theirs"
+    Strategies      map[string]string `toml:"strategies"`       // Per-space strategy overrides
+    LLM             LLMMergeConfig    `toml:"llm"`
+}
+
+type LLMMergeConfig struct {
+    Enabled             bool    `toml:"enabled"`
+    Endpoint            string  `toml:"endpoint"`              // LLM API endpoint (configurable)
+    Model               string  `toml:"model"`
+    AutoApplyThreshold  float64 `toml:"auto_apply_threshold"`  // Auto-apply if confidence >= threshold
+    MaxFileSize         int64   `toml:"max_file_size"`         // Skip LLM for files larger than this
+}
 ```
 
 ## SQLite Schema

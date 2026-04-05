@@ -37,7 +37,9 @@ Tier 4: Manual (last resort)
 
 The goal: 99% of merges require zero user intervention.
 
-## Merge Engine
+## Weave Engine
+
+The implementation lives in `internal/merge/`: `engine.go` (WeaveEngine orchestration), `text.go` (ThreeWayMerge), `structured.go` (StructuredMerge), `llm.go` (LLM merge with configurable endpoint).
 
 ```go
 type MergeEngine struct {
@@ -334,10 +336,10 @@ If LLM is unavailable or confidence is too low:
 
 ```bash
 # Loom shows the conflict
-loom merge feature/auth
+loom weave feature/auth
 
 # Output:
-# Merging feature/auth into main...
+# Weaving feature/auth into main...
 # ✓ 15 entities auto-merged
 # ✓ 2 entities merged by AI (confidence: 0.95, 0.91)
 # ⚠ 1 entity needs review:
@@ -369,10 +371,13 @@ default_strategy = "auto+llm"  # Try auto, then LLM
 
 [merge.llm]
 enabled = true
+endpoint = "https://api.anthropic.com/v1/messages"  # Configurable LLM endpoint
 model = "claude-sonnet-4-5-20250514"
 auto_apply_threshold = 0.9     # Auto-apply if confidence >= 0.9
 max_file_size = 100000         # Don't send files > 100KB to LLM
 ```
+
+The `[merge]` section is fully implemented and loaded from `config.toml`. The LLM endpoint is configurable, allowing self-hosted or alternative LLM providers.
 
 ```go
 type MergePolicy struct {
@@ -398,20 +403,19 @@ func (p *MergePolicy) StrategyFor(spaceID string) string {
 
 ## CLI Commands
 
+The CLI command is `loom weave` (not `loom merge`), consistent with Loom's vocabulary.
+
 ```bash
-# Merge a stream into the current stream
-loom merge feature/auth
+# Weave a stream into the current stream
+loom weave feature/auth
 
 # Dry-run (show what would happen)
-loom merge feature/auth --dry-run
+loom weave feature/auth --dry-run
 
 # Force strategy
-loom merge feature/auth --strategy auto   # No LLM, auto-only
-loom merge feature/auth --strategy ours   # Keep our version for all conflicts
-loom merge feature/auth --strategy theirs # Keep their version for all conflicts
-
-# Accept all LLM suggestions (even low confidence)
-loom merge feature/auth --accept-all
+loom weave feature/auth --strategy auto   # No LLM, auto-only
+loom weave feature/auth --strategy ours   # Keep our version for all conflicts
+loom weave feature/auth --strategy theirs # Keep their version for all conflicts
 ```
 
 ## Future: CRDTs (v2)

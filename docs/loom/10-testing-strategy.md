@@ -287,15 +287,16 @@ func TestFullWorkflow_InitCheckpointDiffRestore(t *testing.T) {
 | `internal/watch` | 27 | Watcher, debouncer, ignore filter |
 | `internal/diff` | 41 | Diff engine, text diff, structured diff, restore |
 | `internal/merge` | 27 | WeaveEngine, three-way text, JSON merge |
-| `internal/agent` | 16 | HTTP agent server endpoints |
+| `internal/agent` | 16 | HTTP agent server endpoints (incl. SSE, tools) |
 | `internal/server` | 6 | Hub server handlers |
+| `internal/adapter` | 10+ | Space adapter registry, code/docs/filesystem |
 | `internal/storage` | included in core | SQLite, object store |
 | `internal/sync` | included in core | Sync client |
-| `internal/cli` | included in core | CLI commands |
+| `internal/cli` | included in core | CLI commands (22 commands) |
 | `pkg/loom` | included in agent | Go SDK |
 | `test/integration` | 2+ | End-to-end workflows |
 
-**Total: 390+ tests across 11 packages.**
+**Total: 499 passing tests across 12 packages + 15 benchmarks.**
 
 ## Coverage Targets
 
@@ -337,6 +338,8 @@ go test ./internal/storage/ -bench=. -benchmem
 ```
 
 ## Benchmark Tests
+
+15 benchmarks are included across the codebase, covering operation writes, object store, text diff, merge, and restore operations.
 
 ```go
 func BenchmarkOpWriter_Write(b *testing.B) {

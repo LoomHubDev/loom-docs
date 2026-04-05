@@ -52,9 +52,9 @@ internal/storage/              SQLite + Object Store
 internal/adapter/              Space adapters
 internal/diff/                 Diff engine
 internal/merge/                Merge engine
-internal/sync/                 Client/server sync
-internal/server/               HTTP server
-internal/agent/                Agent API
+internal/sync/                 Client sync (send/receive/negotiate)
+internal/server/               Hub server (HTTP, JWT auth, per-project SQLite)
+internal/agent/                Agent API (9 endpoints + SSE)
 internal/watch/                File watcher
 internal/cli/                  CLI commands (cobra)
 pkg/loom/                      Public Go SDK
@@ -321,10 +321,18 @@ func TestInitAndCheckpoint(t *testing.T) {
 | `internal/storage/objectstore.go` | Content-addressed blob store |
 | `internal/adapter/adapter.go` | SpaceAdapter interface |
 | `internal/adapter/registry.go` | Adapter registration |
-| `internal/diff/engine.go` | Diff orchestration |
-| `internal/merge/engine.go` | Merge orchestration |
-| `internal/cli/root.go` | CLI root command and setup |
-| `pkg/loom/client.go` | Public Go SDK |
+| `internal/diff/engine.go` | Diff orchestration + ref resolution |
+| `internal/diff/restore.go` | Restore engine (guard+restore, scoped) |
+| `internal/merge/engine.go` | Weave orchestration (Tier 1-3) |
+| `internal/merge/text.go` | Three-way text merge |
+| `internal/merge/structured.go` | Structured JSON merge |
+| `internal/merge/llm.go` | LLM merge (configurable endpoint) |
+| `internal/agent/server.go` | Agent API server (9 endpoints + SSE) |
+| `internal/agent/schema.go` | LLM tool definitions |
+| `internal/server/server.go` | Hub server |
+| `internal/server/auth.go` | bcrypt + hand-rolled HS256 JWT |
+| `internal/cli/root.go` | CLI root command and setup (22 commands) |
+| `pkg/loom/client.go` | Public Go SDK (Open, Checkpoint, Rollback, Diff, etc.) |
 
 ## Cross-References
 

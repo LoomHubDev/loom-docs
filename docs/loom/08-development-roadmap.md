@@ -119,7 +119,7 @@ Branching without the pain.
 - [x] LLM merge integration (Tier 3)
 - [x] Merge policy configuration
 - [x] CLI: `loom stream create/switch/list/info`
-- [x] CLI: `loom merge <stream>`
+- [x] CLI: `loom weave <stream>` (merge command)
 - [x] Tests: merge scenarios, conflict resolution
 
 ### Exit Criteria
@@ -128,7 +128,7 @@ Branching without the pain.
 loom stream create feature/auth    # Fork a stream
 # ... make changes ...
 loom stream switch main            # Switch back
-loom merge feature/auth            # Merge without conflicts
+loom weave feature/auth            # Weave (merge) without conflicts
 ```
 
 ## Phase 5: Agent API
@@ -139,7 +139,7 @@ Make Loom a first-class tool for AI agents.
 
 - [x] Go SDK (`pkg/loom/client.go`)
 - [x] HTTP API server (agent-server)
-- [x] All agent endpoints (checkpoint, rollback, diff, log, status, explain, search)
+- [x] All agent endpoints (checkpoint, rollback, diff, log, status, explain, search, record, tools)
 - [x] LLM tool definitions (JSON schema for function calling)
 - [x] Agent authentication (local tokens)
 - [x] SSE event stream (for real-time agent notifications)
@@ -171,11 +171,11 @@ Push and pull to remotes.
 - [x] Server storage (SQLite, optionally Postgres)
 - [x] Server authentication (JWT tokens)
 - [x] Sync client (push, pull, negotiate)
-- [x] Remote management (add, remove, list)
+- [x] Hub management (add, remove, list, auth, status)
 - [x] Sync log (track what's been synced)
-- [x] CLI: `loom remote add/remove/list`
-- [x] CLI: `loom push`
-- [x] CLI: `loom pull`
+- [x] CLI: `loom hub add/remove/list/auth/status`
+- [x] CLI: `loom send`
+- [x] CLI: `loom receive`
 - [x] Docker image for server
 - [x] Tests: sync round-trip, server API
 
@@ -186,9 +186,9 @@ Push and pull to remotes.
 docker run -p 8080:8080 loom-server
 
 # Client
-loom remote add origin http://localhost:8080/project/my-app
-loom push                    # Pushes ops + objects
-loom pull                    # Pulls remote ops
+loom hub add origin http://localhost:8080/project/my-app
+loom send                    # Sends ops + objects
+loom receive                 # Receives remote ops
 ```
 
 ## Phase 7: Polish + Release
@@ -207,7 +207,14 @@ Prepare for v0.1.0 public release.
 - [x] README.md
 - [x] Website / landing page
 - [x] Homebrew formula
-- [x] Performance benchmarks
+- [x] Performance benchmarks (15 benchmarks)
+- [x] Space CLI (`loom space list/add/remove`)
+- [x] Vault locking (flock-based)
+- [x] Hooks system (8 events: pre/post checkpoint, restore, push, pull)
+- [x] Merge config from config.toml
+- [x] Hub status command
+- [x] SSE event stream for agent API
+- [x] 3 external SDKs (Python, TypeScript, Rust)
 - [x] Security audit
 - [x] License headers
 
@@ -222,7 +229,7 @@ loom init
 loom watch &
 # ... work ...
 loom checkpoint "ready for review"
-loom push
+loom send
 loom diff HEAD~5 HEAD
 loom agent-server &
 ```
@@ -239,9 +246,9 @@ All phases 1-7 are implemented and tested as of April 2026.
 | 4 Streams + Merge | Complete | 27 | internal/merge |
 | 5 Agent API | Complete | 16 | pkg/loom, internal/agent |
 | 6 Sync Server | Complete | 6 | internal/server |
-| 7 Polish | Complete | 2+ | cli (doctor/export/import/compact) |
+| 7 Polish | Complete | 111+ | cli (doctor/export/import/compact), adapters, hooks, locking |
 
-**Total: 390+ tests across 11 packages. Full suite runs in ~30s.**
+**Total: 499 passing tests across 12 packages + 15 benchmarks. Full suite runs in ~30s.**
 
 ## Future (Post v0.1.0)
 

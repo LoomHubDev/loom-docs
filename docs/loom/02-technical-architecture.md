@@ -5,17 +5,17 @@
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                      CLI / Agent API                      │
-│  (loom init, loom checkpoint, loom diff, loom push, ...)  │
+│  (loom init, checkpoint, diff, send, receive, weave, ...) │
 ├───────────────────────┬──────────────────────────────────┤
 │   Space Adapters      │        Agent SDK                  │
 │  ┌──────────────────┐ │  ┌────────────────────────────┐  │
-│  │ code (git-aware) │ │  │ HTTP/gRPC API for agents   │  │
+│  │ code (git-aware) │ │  │ HTTP API + SSE for agents  │  │
 │  │ docs (filesystem)│ │  │ checkpoint, rollback, diff  │  │
-│  │ design (struct)  │ │  │ explain, query, restore     │  │
-│  │ data (schema)    │ │  └────────────────────────────┘  │
-│  │ config (kv)      │ │                                  │
-│  │ notes (text)     │ │                                  │
-│  └──────────────────┘ │                                  │
+│  │ filesystem       │ │  │ explain, search, record     │  │
+│  └──────────────────┘ │  │ status, log, tools          │  │
+│  (data/config/notes   │  └────────────────────────────┘  │
+│   use filesystem      │                                  │
+│   fallback adapter)   │                                  │
 ├───────────────────────┴──────────────────────────────────┤
 │                     Core Engine                           │
 │  ┌─────────────────────────────────────────────────────┐ │
@@ -64,15 +64,15 @@
 │                    Sync Protocol                          │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │ Client                                              │ │
-│  │  ├─ Push (send ops + objects to remote)              │ │
-│  │  ├─ Pull (receive ops + objects from remote)         │ │
+│  │  ├─ Send (push ops + objects to hub)                │ │
+│  │  ├─ Receive (pull ops + objects from hub)           │ │
 │  │  └─ Negotiate (find common ancestor, delta sync)    │ │
 │  ├─────────────────────────────────────────────────────┤ │
 │  │ Server                                              │ │
 │  │  ├─ HTTP API (receive push, serve pull)              │ │
 │  │  ├─ Project Registry (multi-project hosting)         │ │
-│  │  ├─ Auth (tokens, permissions)                      │ │
-│  │  └─ Storage Backend (SQLite or Postgres)             │ │
+│  │  ├─ Auth (bcrypt + hand-rolled HS256 JWT)            │ │
+│  │  └─ Storage Backend (per-project SQLite)             │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -131,10 +131,10 @@ Space Adapter renders diff per entity type:
 Formatted output to terminal or structured JSON for agents
 ```
 
-### Syncing (Push/Pull)
+### Syncing (Send/Receive)
 
 ```
-loom push
+loom send
   │
   ▼
 Client reads local stream head
@@ -212,7 +212,9 @@ Binary content (images, design files, large datasets) shouldn't live in SQLite. 
 | File Watching | `fsnotify` | Cross-platform file system notifications |
 | Hashing | `crypto/sha256` (stdlib) | Content addressing |
 | Compression | `github.com/klauspost/compress/zstd` | Fast compression for blobs |
+| Text Diff | `github.com/sergi/go-diff` | Myers algorithm for text diffing |
 | HTTP Server | `net/http` + `chi` router | Lightweight, stdlib-compatible |
+| Auth | `golang.org/x/crypto/bcrypt` + hand-rolled HS256 JWT | Password hashing + token auth |
 | Logging | `log/slog` (stdlib) | Structured logging, Go 1.21+ |
 | Testing | `testing` (stdlib) + `testify` | Standard Go testing |
 | Config | `toml` | Human-readable, better than YAML for config |
@@ -239,45 +241,33 @@ loom/
       objectstore.go            # Content-addressed blob storage
       hash.go                   # SHA-256 hashing utilities
     adapter/
-      adapter.go                # SpaceAdapter interface
+      adapter.go                # SpaceAdapter interface (ID, Name, Detect, Extensions, Diff, IsBinary)
       registry.go               # Adapter registration and lookup
-      code/
-        code.go                 # Code space adapter (Git-aware)
-        git.go                  # Git integration (read HEAD, diff, status)
-      docs/
-        docs.go                 # Docs space adapter (filesystem)
-      design/
-        design.go               # Design space adapter (structured)
-      data/
-        data.go                 # Data space adapter (JSON/YAML schemas)
-      config/
-        config.go               # Config space adapter
-      notes/
-        notes.go                # Notes space adapter
+      code.go                   # Code space adapter (Git-aware)
+      docs.go                   # Docs space adapter (filesystem)
+      filesystem.go             # Filesystem adapter (fallback for data/config/notes)
     diff/
-      engine.go                 # Diff orchestration
-      text.go                   # Line/word text diff (Myers algorithm)
-      structured.go             # Structured diff (JSON patch)
+      engine.go                 # Diff orchestration + ref resolution (HEAD, HEAD~N, IDs, seqs)
+      text.go                   # Line/word text diff (Myers algorithm via go-diff)
       binary.go                 # Binary fingerprint diff
-      formatter.go              # Output formatting (terminal, JSON)
+      formatter.go              # Output formatting (terminal colors + JSON)
+      restore.go                # Restore engine (guard+restore checkpoints, full/space/entity scope)
     merge/
-      engine.go                 # Merge orchestration
-      auto.go                   # Automatic non-conflicting merge
-      llm.go                    # LLM-assisted semantic merge
-      policy.go                 # Merge strategy per space/type
+      engine.go                 # Weave orchestration (Tier 1-3)
+      text.go                   # Three-way text merge (ThreeWayMerge)
+      structured.go             # Structured JSON merge (StructuredMerge)
+      llm.go                    # LLM-assisted semantic merge (configurable endpoint)
     sync/
       client.go                 # Sync client (push/pull)
       protocol.go               # Wire protocol types
       negotiate.go              # Ancestry negotiation
     server/
-      server.go                 # HTTP server
-      handlers.go               # API route handlers
-      auth.go                   # Token-based auth
-      store.go                  # Server-side storage
+      server.go                 # HTTP hub server (negotiate/push/pull)
+      auth.go                   # bcrypt + hand-rolled HS256 JWT auth
+      store.go                  # Per-project SQLite storage
     agent/
-      api.go                    # Agent-facing API (structured)
-      handlers.go               # Agent command handlers
-      schema.go                 # API schema for LLM tool use
+      server.go                 # Agent API HTTP server (9 endpoints + SSE)
+      schema.go                 # LLM tool definitions (JSON schema for function calling)
     watch/
       watcher.go                # File system watcher
       debounce.go               # Change debouncing
@@ -291,16 +281,25 @@ loom/
       checkpoint.go             # loom checkpoint
       restore.go                # loom restore
       stream.go                 # loom stream
-      push.go                   # loom push
-      pull.go                   # loom pull
-      remote.go                 # loom remote
-      space.go                  # loom space
-      watch.go                  # loom watch (start auto-versioning daemon)
-      agent.go                  # loom agent (start agent API server)
+      send.go                   # loom send
+      receive.go                # loom receive
+      hub.go                    # loom hub (add/remove/list/auth/status)
+      space.go                  # loom space (list/add/remove)
+      watch.go                  # loom watch (auto-versioning daemon, --daemon flag)
+      agent.go                  # loom agent-server
+      weave.go                  # loom weave
+      doctor.go                 # loom doctor (5 integrity checks)
+      export.go                 # loom export (tar.gz)
+      import.go                 # loom import
+      compact.go                # loom compact (VACUUM)
   pkg/
     loom/
-      client.go                 # Public Go SDK for embedding Loom
+      client.go                 # Public Go SDK (Open, Checkpoint, Rollback, RollbackEntity, Diff, DiffSummary, Log, Status, Search, Explain, RecordChange)
       types.go                  # Public types
+  sdk/
+    python/                     # Python SDK (httpx)
+    typescript/                 # TypeScript SDK (native fetch)
+    rust/                       # Rust SDK (reqwest + serde)
   test/
     integration/
       init_test.go
@@ -325,6 +324,10 @@ Main Process
   ├─ AutoCheckpoint goroutine (evaluates checkpoint criteria)
   └─ CLI handler (accepts user commands concurrently)
 ```
+
+### Vault Locking
+
+The `.loom/locks/writer.lock` file uses `flock`-based locking to ensure only one process writes to the vault at a time. This prevents corruption when multiple CLI invocations or daemons access the same project concurrently.
 
 ### Write Safety
 
@@ -370,15 +373,16 @@ The agent API server handles requests concurrently. Read operations (diff, log, 
 
 ### Remote
 
-- Token-based authentication (JWT or API key)
+- Hand-rolled HS256 JWT authentication (bcrypt-hashed passwords)
 - TLS required for all remote communication
 - Operations are signed with author identity (future: cryptographic signing)
 - Server validates operation sequence integrity on receive
+- Per-project SQLite storage on the hub
 
 ## Extensibility Points
 
 1. **Space Adapters** — Implement the `SpaceAdapter` interface to add new content types
 2. **Merge Policies** — Register custom merge strategies per space or entity type
-3. **Hooks** — Shell scripts executed pre/post checkpoint, push, pull
-4. **Agent Tools** — Extend the agent API with custom tools via the plugin interface
-5. **Storage Backends** — Server can use SQLite (default) or Postgres for large deployments
+3. **Hooks** — 8 hook events: pre/post checkpoint, restore, push, pull
+4. **Agent Tools** — Extend the agent API with custom tools via the schema endpoint
+5. **SDKs** — Python (httpx), TypeScript (native fetch), Rust (reqwest+serde) for agent integration

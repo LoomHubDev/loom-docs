@@ -2,7 +2,7 @@
 
 ## Overview
 
-Loom's CLI is built with Cobra. All commands follow this pattern:
+Loom provides **22 CLI commands** across 2 binaries (`loom` and `loom-server`). The CLI is built with Cobra. All commands follow this pattern:
 
 ```bash
 loom <command> [subcommand] [flags] [args]
@@ -298,7 +298,10 @@ loom watch [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--debounce` | `500ms` | Debounce duration for file events |
+| `--daemon` | `false` | Run in background (detach from terminal) |
 | `--no-auto-checkpoint` | `false` | Disable automatic checkpointing |
+| `--agent-api` | `false` | Start agent API alongside watcher |
+| `--agent-port` | `7890` | Port for agent API (when `--agent-api` is set) |
 
 **Output (foreground):**
 ```
@@ -310,6 +313,30 @@ Watching my-app...
 [14:30:01] code  src/auth/config.go modified
 [14:30:15] docs  docs/auth.md modified
 [14:35:01] ◆ Auto checkpoint: "3 files in code, 1 in docs" (seq 1250)
+```
+
+---
+
+### `loom space`
+
+Manage spaces.
+
+```bash
+loom space <subcommand> [flags]
+```
+
+**Subcommands:**
+```bash
+loom space list                  # List all spaces
+loom space add <id> <path>       # Add a space
+loom space remove <id>           # Remove a space
+```
+
+**Output (list):**
+```
+  code        .          code adapter     142 entities
+  docs        docs/      docs adapter      28 entities
+  config      .          filesystem         5 entities
 ```
 
 ---
@@ -328,6 +355,14 @@ loom hub add <name> <url>        # Add a hub
 loom hub remove <name>           # Remove a hub
 loom hub list                    # List hubs
 loom hub auth <name>             # Set authentication
+loom hub status                  # Show sync status for all hubs
+```
+
+**Output (status):**
+```
+origin: https://loomhub.dev/flakerimi/my-app
+  main: 42 ops ahead, 0 behind
+  feature/auth: 15 ops ahead, 3 behind
 ```
 
 ---
@@ -440,7 +475,7 @@ loom agent-server [flags]
 |------|---------|-------------|
 | `--port` | 7890 | Port to listen on |
 
-**Endpoints:**
+**Endpoints (9 + SSE):**
 ```
 POST /api/v1/checkpoint      # Create a checkpoint
 POST /api/v1/rollback        # Rollback to a checkpoint
@@ -448,6 +483,10 @@ GET  /api/v1/diff            # Get diff
 GET  /api/v1/log             # Get checkpoint log
 GET  /api/v1/status          # Get project status
 GET  /api/v1/search          # Search checkpoints
+POST /api/v1/explain         # LLM-explain a diff
+POST /api/v1/record          # Record a file change
+GET  /api/v1/tools           # Get LLM tool definitions
+GET  /api/v1/events          # SSE event stream
 ```
 
 ---

@@ -12,7 +12,7 @@
 
 ```
 loom/
-  go.mod                        # Module: github.com/AzuraCast/loom (or your org)
+  go.mod                        # Module: github.com/constructspace/loom
   go.sum
   LICENSE                       # MIT
   Makefile                      # Build, test, lint, release targets
@@ -32,7 +32,7 @@ loom/
 
 ```bash
 # Clone
-git clone https://github.com/org/loom.git
+git clone https://github.com/constructspace/loom.git
 cd loom
 
 # Build CLI
@@ -49,7 +49,7 @@ make build
 
 ```bash
 # Via go install
-go install github.com/org/loom/cmd/loom@latest
+go install github.com/constructspace/loom/cmd/loom@latest
 
 # Or download binary from releases
 curl -fsSL https://get.loom.dev | sh
@@ -85,7 +85,7 @@ loom diff
 ### Clone and Build
 
 ```bash
-git clone https://github.com/org/loom.git
+git clone https://github.com/constructspace/loom.git
 cd loom
 go mod download
 make build
@@ -179,6 +179,16 @@ on_significant_change = true    # Checkpoint on large diffs
 # Added by `loom remote add`
 # origin = "https://loom.example.com/project/my-app"
 
+[merge]
+default_strategy = "auto+llm"  # Try auto, then LLM
+[merge.strategies]
+"config" = "ours"              # Config conflicts: always keep our version
+[merge.llm]
+enabled = true
+endpoint = "https://api.anthropic.com/v1/messages"
+model = "claude-sonnet-4-5-20250514"
+auto_apply_threshold = 0.9
+
 [agent]
 enabled = false                 # Start agent API on `loom watch`
 port = 7890
@@ -245,7 +255,7 @@ Thumbs.db
 | `github.com/go-chi/chi/v5` | HTTP router (server + agent API) |
 | `github.com/sergi/go-diff` | Text diffing (Myers algorithm) |
 | `github.com/google/uuid` | UUID generation |
-| `github.com/rs/zerolog` | Structured logging (or stdlib slog) |
+| `golang.org/x/crypto/bcrypt` | Password hashing for hub auth |
 
 ### Dev Dependencies
 

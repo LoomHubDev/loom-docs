@@ -214,6 +214,8 @@ func (c *SyncClient) Receive(streamName string) error {
 
 ## Hub Server
 
+The hub server is fully implemented in `internal/server/` and built as the `loom-server` binary from `cmd/loom-server/main.go`. It uses per-project SQLite storage with hand-rolled HS256 JWT authentication (bcrypt password hashing).
+
 ### Architecture
 
 ```go
@@ -295,6 +297,8 @@ func (s *HubServer) handleSend(w http.ResponseWriter, r *http.Request) {
 
 ### Authentication
 
+The hub server uses hand-rolled HS256 JWT tokens (no external JWT library). Passwords are hashed with bcrypt. Users are created via `loom-server user add <username>`.
+
 ```go
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -310,7 +314,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
             return
         }
 
-        // Validate JWT token
+        // Validate hand-rolled HS256 JWT token
         claims, err := validateToken(strings.TrimPrefix(token, "Bearer "))
         if err != nil {
             http.Error(w, "unauthorized", 401)
@@ -367,12 +371,12 @@ For a minimal self-hosted hub:
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o loomhub ./cmd/loomhub
+RUN go build -o loom-server ./cmd/loom-server
 
 FROM alpine:3.19
-COPY --from=builder /app/loomhub /usr/local/bin/
-EXPOSE 3000
-CMD ["loomhub", "serve", "--port", "3000", "--data", "/data"]
+COPY --from=builder /app/loom-server /usr/local/bin/
+EXPOSE 8080
+CMD ["loom-server", "serve", "--port", "8080", "--data", "/data"]
 ```
 
 ## Future: Real-Time Sync

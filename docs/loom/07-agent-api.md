@@ -159,6 +159,10 @@ For external agents (Python, JS, any language):
 | POST | `/api/v1/explain` | LLM-explain a diff |
 | GET | `/api/v1/search` | Search checkpoints |
 | POST | `/api/v1/record` | Record a file change |
+| GET | `/api/v1/tools` | Get LLM tool definitions (JSON schema) |
+| GET | `/api/v1/events` | SSE event stream (real-time notifications) |
+
+**9 REST endpoints + 1 SSE stream = 10 total.**
 
 ### Create Checkpoint
 
@@ -306,6 +310,46 @@ Response:
 }
 ```
 
+### Tools
+
+```http
+GET /api/v1/tools
+```
+
+Returns the full set of LLM tool definitions in JSON Schema format, suitable for use with function-calling APIs.
+
+### SSE Event Stream
+
+```http
+GET /api/v1/events
+Accept: text/event-stream
+```
+
+Provides a real-time Server-Sent Events stream for agents to receive notifications about project changes:
+
+```
+event: checkpoint
+data: {"id": "01ARZ3NDEK", "title": "auto checkpoint", "source": "auto", "seq": 1250}
+
+event: operation
+data: {"entity_id": "src/main.go", "type": "modify", "space_id": "code"}
+
+event: restore
+data: {"checkpoint_id": "01ARZ3NDEK", "scope": "full"}
+```
+
+## External SDKs
+
+Three SDKs are provided for agents in other languages:
+
+| Language | Package | Transport |
+|----------|---------|-----------|
+| Python | `sdk/python/` | httpx |
+| TypeScript | `sdk/typescript/` | native fetch |
+| Rust | `sdk/rust/` | reqwest + serde |
+
+Each SDK wraps the HTTP API with idiomatic types and error handling.
+
 ## LLM Tool Definition
 
 For agents using tool-use / function-calling:
@@ -434,10 +478,14 @@ func (s *AgentServer) Start(port int) error {
     r.Post("/api/v1/explain", s.handleExplain)
     r.Get("/api/v1/search", s.handleSearch)
     r.Post("/api/v1/record", s.handleRecord)
+    r.Get("/api/v1/tools", s.handleTools)
+    r.Get("/api/v1/events", s.handleSSE)  // SSE event stream
 
     return http.ListenAndServe(fmt.Sprintf(":%d", port), r)
 }
 ```
+
+The agent server implementation lives in `internal/agent/server.go` (routes + handlers) and `internal/agent/schema.go` (LLM tool definitions).
 
 ## Agent Workflows
 

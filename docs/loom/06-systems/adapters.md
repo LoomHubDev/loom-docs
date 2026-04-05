@@ -13,32 +13,23 @@ A space adapter is the bridge between Loom's universal versioning model and a sp
 
 ## Adapter Interface
 
+The actual adapter interface is deliberately minimal. Each adapter only needs to implement 6 methods:
+
 ```go
 type SpaceAdapter interface {
     // Identity
-    ID() string           // "code", "docs", "design", etc.
-    Name() string         // "Code", "Documentation", "Design"
+    ID() string           // "code", "docs", "filesystem"
+    Name() string         // "Code", "Documentation", "Filesystem"
 
-    // Setup
-    Init(config SpaceConfig) error
+    // Detection
     Detect(projectPath string) (bool, error) // Auto-detect if this space exists
 
-    // Change tracking
-    ScanEntities() ([]EntityState, error)          // Full scan of current state
-    NormalizeChange(event FileEvent) ([]Operation, error)  // Convert fs event to ops
-    GetRefs() map[string]string                    // Adapter-specific refs
-
-    // Content
-    ReadEntity(path string) ([]byte, error)        // Read current content
-    WriteEntity(path string, content []byte) error // Write content (for restore)
-    GetEntityStates(ops []Operation) ([]EntityState, error)  // States from ops
+    // File classification
+    Extensions() []string                     // File extensions this adapter handles
+    IsBinary(path string) bool                // Whether a file should be treated as binary
 
     // Diffing
     Diff(oldContent, newContent []byte, path string) (*DiffOutput, error)
-    DiffSummary(ops []Operation) (SpaceSummary, error)
-
-    // Merge (optional — default falls back to core merge engine)
-    Merge(base, ours, theirs []byte, path string) (*MergeOutput, error)
 }
 
 type SpaceConfig struct {
@@ -72,6 +63,8 @@ type MergeOutput struct {
 
 ## Adapter Registry
 
+Three adapters are fully implemented: `code`, `docs`, and `filesystem`. Other space types (data, config, notes) use the `filesystem` adapter as a fallback.
+
 ```go
 type AdapterRegistry struct {
     adapters map[string]SpaceAdapter
@@ -82,10 +75,7 @@ func NewAdapterRegistry() *AdapterRegistry {
     // Register built-in adapters
     r.Register(NewCodeAdapter())
     r.Register(NewDocsAdapter())
-    r.Register(NewDesignAdapter())
-    r.Register(NewDataAdapter())
-    r.Register(NewConfigAdapter())
-    r.Register(NewNotesAdapter())
+    r.Register(NewFilesystemAdapter())
     return r
 }
 
@@ -267,141 +257,42 @@ func isDocFile(path string) bool {
 }
 ```
 
-### Design Adapter (Structured)
+### Filesystem Adapter (Fallback)
 
-Handles design files — JSON-based structured data with nodes, components, pages.
+The filesystem adapter handles all generic content types. It serves as the fallback for spaces like `data`, `config`, and `notes` that don't have specialized adapters yet.
 
 ```go
-type DesignAdapter struct {
-    config SpaceConfig
+type FilesystemAdapter struct{}
+
+func (a *FilesystemAdapter) ID() string   { return "filesystem" }
+func (a *FilesystemAdapter) Name() string { return "Filesystem" }
+
+func (a *FilesystemAdapter) Detect(projectPath string) (bool, error) {
+    // Always available as a fallback
+    return true, nil
 }
 
-func (a *DesignAdapter) ID() string   { return "design" }
-func (a *DesignAdapter) Name() string { return "Design" }
-
-func (a *DesignAdapter) Detect(projectPath string) (bool, error) {
-    designDirs := []string{"design", "ui", ".design"}
-    for _, d := range designDirs {
-        if info, err := os.Stat(filepath.Join(projectPath, d)); err == nil && info.IsDir() {
-            return true, nil
-        }
-    }
-    // Check for design file extensions
-    matches, _ := filepath.Glob(filepath.Join(projectPath, "**/*.design.json"))
-    return len(matches) > 0, nil
+func (a *FilesystemAdapter) Extensions() []string {
+    // Handles all file types
+    return nil
 }
 
-func (a *DesignAdapter) Diff(oldContent, newContent []byte, path string) (*DiffOutput, error) {
-    // Structural diff for design files
-    // Parse both as JSON, compute JSON patch
-    patch, err := computeJSONPatch(oldContent, newContent)
-    if err != nil {
-        // Fall back to text diff
-        return textDiff(oldContent, newContent, path)
-    }
-
-    return &DiffOutput{
-        Type:    "structured",
-        Patches: patch,
-        Summary: summarizeJSONPatch(patch),
-    }, nil
+func (a *FilesystemAdapter) IsBinary(path string) bool {
+    return isBinaryFile(path)
 }
 
-func (a *DesignAdapter) Merge(base, ours, theirs []byte, path string) (*MergeOutput, error) {
-    // Structural merge for design files
-    // Use JSON merge patch (RFC 7396) for non-conflicting changes
-    merged, err := structuralMerge(base, ours, theirs)
-    if err != nil {
-        return &MergeOutput{OK: false}, nil
+func (a *FilesystemAdapter) Diff(oldContent, newContent []byte, path string) (*DiffOutput, error) {
+    if isBinary(oldContent) || isBinary(newContent) {
+        return &DiffOutput{
+            Type:    "binary",
+            Summary: fmt.Sprintf("Binary file changed (%d -> %d bytes)", len(oldContent), len(newContent)),
+        }, nil
     }
-    return &MergeOutput{OK: true, Content: merged, Strategy: "auto"}, nil
+    return textDiff(oldContent, newContent, path)
 }
 ```
 
-### Data Adapter (Schemas)
-
-Handles structured data files — JSON, YAML, TOML, SQL migrations.
-
-```go
-type DataAdapter struct {
-    config SpaceConfig
-}
-
-func (a *DataAdapter) ID() string   { return "data" }
-func (a *DataAdapter) Name() string { return "Data" }
-
-func (a *DataAdapter) Detect(projectPath string) (bool, error) {
-    dataDirs := []string{"data", "schemas", "migrations"}
-    for _, d := range dataDirs {
-        if info, err := os.Stat(filepath.Join(projectPath, d)); err == nil && info.IsDir() {
-            return true, nil
-        }
-    }
-    return false, nil
-}
-
-func (a *DataAdapter) Diff(oldContent, newContent []byte, path string) (*DiffOutput, error) {
-    ext := filepath.Ext(path)
-    switch ext {
-    case ".json":
-        patch, _ := computeJSONPatch(oldContent, newContent)
-        return &DiffOutput{Type: "structured", Patches: patch}, nil
-    case ".yaml", ".yml":
-        // Parse YAML → JSON, then JSON patch
-        oldJSON := yamlToJSON(oldContent)
-        newJSON := yamlToJSON(newContent)
-        patch, _ := computeJSONPatch(oldJSON, newJSON)
-        return &DiffOutput{Type: "structured", Patches: patch}, nil
-    default:
-        return textDiff(oldContent, newContent, path)
-    }
-}
-```
-
-### Config Adapter
-
-```go
-type ConfigAdapter struct {
-    config SpaceConfig
-}
-
-func (a *ConfigAdapter) ID() string   { return "config" }
-func (a *ConfigAdapter) Name() string { return "Configuration" }
-
-func (a *ConfigAdapter) Detect(projectPath string) (bool, error) {
-    configFiles := []string{
-        ".env.example", "config.toml", "config.yaml",
-        ".editorconfig", "tsconfig.json", "webpack.config.js",
-    }
-    for _, f := range configFiles {
-        if _, err := os.Stat(filepath.Join(projectPath, f)); err == nil {
-            return true, nil
-        }
-    }
-    return false, nil
-}
-```
-
-### Notes Adapter
-
-```go
-type NotesAdapter struct {
-    config SpaceConfig
-}
-
-func (a *NotesAdapter) ID() string   { return "notes" }
-func (a *NotesAdapter) Name() string { return "Notes" }
-
-func (a *NotesAdapter) Detect(projectPath string) (bool, error) {
-    noteDirs := []string{"notes", "journal", ".notes"}
-    for _, d := range noteDirs {
-        if info, err := os.Stat(filepath.Join(projectPath, d)); err == nil && info.IsDir() {
-            return true, nil
-        }
-    }
-    return false, nil
-}
-```
+> **Note:** Spaces configured as `data`, `config`, or `notes` in `.loom/config.toml` use the `filesystem` adapter under the hood. Specialized adapters (design, data/schema, config/kv) are planned for future versions.
 
 ## Custom Adapters
 
